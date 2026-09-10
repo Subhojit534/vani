@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:speech_translator/ui/screens/conversation_screen.dart';
-import 'package:speech_translator/ui/screens/dictionary_screen.dart';
+import 'package:speech_translator/ui/screens/fln_curriculum_hub_screen.dart';
 import 'package:speech_translator/ui/screens/history_screen.dart';
 import 'package:speech_translator/ui/screens/home_screen.dart';
 import 'package:speech_translator/ui/screens/phrasebook_screen.dart';
@@ -19,7 +19,7 @@ class SantaliTranslatorApp extends StatefulWidget {
 }
 
 class _SantaliTranslatorAppState extends State<SantaliTranslatorApp> {
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
 
   void _toggleTheme() {
     setState(() {
@@ -30,7 +30,7 @@ class _SantaliTranslatorAppState extends State<SantaliTranslatorApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Santali Hindi Translator',
+      title: 'Santali Classroom Translator',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -51,56 +51,93 @@ class MainNavigationContainer extends StatefulWidget {
 class _MainNavigationContainerState extends State<MainNavigationContainer> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    ConversationScreen(),
-    PhrasebookScreen(),
-    DictionaryScreen(),
-    HistoryScreen(),
+  void _navigateToTab(int index) {
+    if (index >= 0 && index < 5) {
+      setState(() => _currentIndex = index);
+    }
+  }
+
+  late final List<Widget> _screens = [
+    const HomeScreen(),
+    const FlnCurriculumHubScreen(),
+    const ConversationScreen(),
+    const PhrasebookScreen(),
+    HistoryScreen(onNavigateToTranslate: () => _navigateToTab(0)),
   ];
 
   @override
   Widget build(BuildContext context) {
-        final primary = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+        ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) {
-          setState(() => _currentIndex = idx);
-        },
-        indicatorColor: primary.withValues(alpha: 0.18),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.translate_outlined),
-            selectedIcon: Icon(Icons.translate),
-            label: "Translate",
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkSurface : AppTheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+              width: 1.2,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.record_voice_over_outlined),
-            selectedIcon: Icon(Icons.record_voice_over),
-            label: "Conversation",
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withValues(alpha: 0.25) : const Color(0x0F24332F),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.0,
+            child: NavigationBar(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (idx) {
+                setState(() => _currentIndex = idx);
+              },
+              backgroundColor: Colors.transparent,
+              indicatorColor: isDark ? const Color(0xFF174238) : AppTheme.softGreen,
+              height: 66,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.translate_outlined),
+                  selectedIcon: Icon(Icons.translate_rounded),
+                  label: "Translate",
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.auto_stories_outlined),
+                  selectedIcon: Icon(Icons.auto_stories_rounded),
+                  label: "FLN Hub",
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.record_voice_over_outlined),
+                  selectedIcon: Icon(Icons.record_voice_over_rounded),
+                  label: "Conversation",
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.menu_book_outlined),
+                  selectedIcon: Icon(Icons.menu_book_rounded),
+                  label: "Phrasebook",
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history_edu_outlined),
+                  selectedIcon: Icon(Icons.history_edu_rounded),
+                  label: "History",
+                ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: "Phrasebook",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.spellcheck_outlined),
-            selectedIcon: Icon(Icons.spellcheck),
-            label: "Dictionary",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: "History",
-          ),
-        ],
+        ),
       ),
     );
   }

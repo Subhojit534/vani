@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:speech_translator/hybrid_translation_service.dart';
 import 'package:speech_translator/service/offline/offline_translator.dart';
 import 'package:speech_translator/service/offline/santali_dictionary.dart';
-import 'package:speech_translator/hybrid_translation_service.dart';
 import 'package:speech_translator/service/storage/storage_service.dart';
 import 'package:speech_translator/service/voice/voice_service.dart';
+import 'package:speech_translator/ui/theme/app_theme.dart';
+import 'package:speech_translator/ui/widgets/app_card.dart';
+import 'package:speech_translator/ui/widgets/audio_button.dart';
 import 'package:speech_translator/ui/widgets/ol_chiki_keyboard.dart';
+import 'package:speech_translator/ui/widgets/section_header.dart';
+import 'package:speech_translator/ui/widgets/status_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,6 +35,58 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   bool _isLoading = false;
   bool _isFavorite = false;
 
+  // Language selector UI state
+  String _selectedSourceLang = "हिंदी (Hindi)";
+  String _selectedTargetLang = "Santali";
+  bool _isSourceMenuOpen = false;
+  bool _isTargetMenuOpen = false;
+
+  static const List<String> _sourceLanguageOptions = [
+    "हिंदी (Hindi)",
+    "English",
+  ];
+
+  static const List<String> _targetLanguageOptions = [
+    "Santali",
+    "Mundari",
+    "Ho",
+  ];
+
+  Color _getLanguageDotColor(String lang) {
+    switch (lang) {
+      case 'Santali':
+      case 'Mundari':
+      case 'Ho':
+        return AppTheme.terracotta;
+      case 'हिंदी (Hindi)':
+      case 'English':
+      default:
+        return AppTheme.primary;
+    }
+  }
+
+  void _onSourceLanguageSelected(String lang) {
+    setState(() {
+      _selectedSourceLang = lang;
+      if (lang == "हिंदी (Hindi)") {
+        _sourceLang = 'hi';
+        _showKeyboard = false;
+      } else if (lang == "English") {
+        _sourceLang = 'hi';
+        _showKeyboard = false;
+      }
+    });
+  }
+
+  void _onTargetLanguageSelected(String lang) {
+    setState(() {
+      _selectedTargetLang = lang;
+      if (lang == "Santali") {
+        _targetLang = 'sat';
+      }
+    });
+  }
+
   TranslationResult? _currentResult;
   Timer? _debounceTimer;
 
@@ -45,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.20).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
@@ -107,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _isLoading = false;
       });
 
-      // Save to history only for full meaningful inputs
+      // Save to history for meaningful inputs
       if (result.translatedText.isNotEmpty && clean.length >= 2) {
         final historyItem = HistoryItem(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -134,6 +191,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       final temp = _sourceLang;
       _sourceLang = _targetLang;
       _targetLang = temp;
+
+      final tempUi = _selectedSourceLang;
+      _selectedSourceLang = _selectedTargetLang;
+      _selectedTargetLang = tempUi;
 
       if (prevTranslation != null && prevTranslation.isNotEmpty) {
         _inputController.text = prevTranslation;
@@ -162,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     } else {
       setState(() {});
       await _voiceService.startListening(
-        languageCode: 'hi_IN',
+        languageCode: _sourceLang == 'hi' ? 'hi_IN' : 'en_IN',
         onResult: (recognized, isFinal) {
           if (!mounted) return;
           setState(() {
@@ -201,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             bottom: MediaQuery.of(context).viewInsets.bottom + 24,
           ),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E2638) : Colors.white,
+            color: isDark ? AppTheme.darkSurface : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
@@ -211,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 Center(
                   child: Container(
-                    width: 40,
+                    width: 44,
                     height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade400,
@@ -222,28 +283,34 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 const SizedBox(height: 16),
                 const Row(
                   children: [
-                    Icon(Icons.offline_bolt, color: Color(0xFF2D6A4F)),
+                    Icon(Icons.offline_bolt_rounded, color: AppTheme.primary, size: 22),
                     SizedBox(width: 8),
                     Text(
-                      "Offline Speech & Quick Phrases",
+                      "Offline Classroom Phrases",
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Tap any phrase below for instant offline translation and spoken audio, or type in the text box.",
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  "Speech recognition requires offline language pack. Tap any classroom phrase below for instant offline translation and audio:",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: SantaliDictionary.phrases.take(12).map((phrase) {
+                  children: SantaliDictionary.phrases
+                      .where((p) => p.category == "Classroom" || p.category == "Greetings")
+                      .take(14)
+                      .map((phrase) {
                     final label = _sourceLang == 'hi' ? phrase.hindi : phrase.santaliOlChiki;
                     return ActionChip(
                       label: Text(label, style: const TextStyle(fontSize: 13)),
-                      avatar: const Icon(Icons.volume_up, size: 14),
+                      avatar: const Icon(Icons.volume_up_rounded, size: 16),
                       onPressed: () {
                         Navigator.pop(context);
                         _inputController.text = label;
@@ -288,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_isFavorite ? "Saved to Favorites" : "Removed from Favorites"),
+        content: Text(_isFavorite ? "Saved to Classroom Favorites" : "Removed from Favorites"),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
@@ -298,31 +365,56 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Santali Translator"),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.school_rounded,
+                size: 20,
+                color: AppTheme.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Santali Translator",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    "Classroom Edition",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
-          // Offline mode switch badge
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            child: FilterChip(
-              avatar: Icon(
-                _isOffline ? Icons.cloud_off : Icons.cloud_done,
-                size: 16,
-                color: _isOffline ? const Color(0xFFC84B31) : const Color(0xFF2D6A4F),
-              ),
-              label: Text(
-                _isOffline ? "Offline" : "Online",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _isOffline ? const Color(0xFFC84B31) : const Color(0xFF2D6A4F),
-                ),
-              ),
-              selected: _isOffline,
-              onSelected: (val) async {
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: StatusBadge(
+              isOffline: _isOffline,
+              onToggle: (val) async {
                 setState(() {
                   _isOffline = val;
                   _hybridService.isOfflineMode = val;
@@ -340,15 +432,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         children: [
           // Language Switcher Banner
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2638) : Colors.white,
-              borderRadius: BorderRadius.circular(30),
+              color: isDark ? AppTheme.darkCard : Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+                width: 1.2,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 6,
+                  color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0x0A24332F),
+                  blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -356,338 +452,412 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Source Language Selector
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      _sourceLang == 'hi' ? "हिंदी (Hindi)" : "ᱥᱟᱱᱛᱟᱲᱤ (Santali)",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+                  child: _buildLanguageSelector(
+                    context: context,
+                    currentLang: _selectedSourceLang,
+                    headerTitle: "SOURCE LANGUAGE",
+                    options: _sourceLanguageOptions,
+                    isOpen: _isSourceMenuOpen,
+                    onOpenChanged: (val) => setState(() => _isSourceMenuOpen = val),
+                    onSelected: _onSourceLanguageSelected,
                   ),
                 ),
+
+                // Swap Button
                 IconButton(
+                  tooltip: "Swap languages",
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
                   icon: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: primary.withValues(alpha: 0.12),
+                      color: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.swap_horiz_rounded, color: primary, size: 22),
+                    child: const Icon(
+                      Icons.swap_horiz_rounded,
+                      color: AppTheme.primary,
+                      size: 20,
+                    ),
                   ),
                   onPressed: _swapLanguages,
                 ),
+
+                // Target Language Selector
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      _targetLang == 'sat' ? "ᱥᱟᱱᱛᱟᱲᱤ (Santali)" : "हिंदी (Hindi)",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+                  child: _buildLanguageSelector(
+                    context: context,
+                    currentLang: _selectedTargetLang,
+                    headerTitle: "TARGET LANGUAGE",
+                    options: _targetLanguageOptions,
+                    isOpen: _isTargetMenuOpen,
+                    onOpenChanged: (val) => setState(() => _isTargetMenuOpen = val),
+                    onSelected: _onTargetLanguageSelected,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Scrollable input / output cards
+          // Scrollable content area
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Source Input Card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                  // --- Source Input Card ---
+                  AppCard(
+                    accentColor: AppTheme.primary,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Card Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _sourceLang == 'hi' ? "TEACHER / HINDI INPUT" : "SANTALI (OL CHIKI) INPUT",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                if (_sourceLang == 'sat')
+                                  IconButton(
+                                    tooltip: "Toggle Ol Chiki Virtual Keyboard",
+                                    icon: Icon(
+                                      _showKeyboard ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded,
+                                      size: 20,
+                                      color: _showKeyboard ? AppTheme.primary : Colors.grey,
+                                    ),
+                                    onPressed: () {
+                                      setState(() => _showKeyboard = !_showKeyboard);
+                                    },
+                                  ),
+                                if (_inputController.text.isNotEmpty)
+                                  IconButton(
+                                    tooltip: "Clear input",
+                                    icon: const Icon(Icons.close_rounded, size: 18),
+                                    onPressed: () {
+                                      _inputController.clear();
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Text Field
+                        TextField(
+                          controller: _inputController,
+                          focusNode: _focusNode,
+                          maxLines: 4,
+                          minLines: 2,
+                          style: TextStyle(
+                            fontSize: 17,
+                            height: 1.35,
+                            color: isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: _sourceLang == 'hi'
+                                ? "यहाँ लिखें या बोलें (उदा. किताब खोलो / आप कैसे हैं?)..."
+                                : "ᱱᱚᱰᱮ ᱚᱞ ᱢᱮ (e.g. ᱪᱮᱫ ᱞᱮᱠᱟ ᱢᱮᱱᱟᱜ ᱵᱤᱱᱟ)...",
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+
+                        const Divider(height: 20),
+
+                        // Input Card Action Bar
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: "Paste",
+                                  icon: const Icon(Icons.content_paste_rounded, size: 20),
+                                  onPressed: () async {
+                                    final data = await Clipboard.getData('text/plain');
+                                    if (data?.text != null) {
+                                      _inputController.text = data!.text!;
+                                    }
+                                  },
+                                ),
+                                if (_inputController.text.isNotEmpty)
+                                  AudioButton(
+                                    size: 18,
+                                    tooltip: "Listen to input",
+                                    onPressed: () {
+                                      _speakText(_inputController.text, _sourceLang);
+                                    },
+                                  ),
+                              ],
+                            ),
+
+                            // Microphone Button
+                            AnimatedBuilder(
+                              animation: _pulseAnimation,
+                              builder: (context, child) {
+                                final isListening = _voiceService.isListening;
+                                return Transform.scale(
+                                  scale: isListening ? _pulseAnimation.value : 1.0,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _toggleVoiceInput,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isListening ? Colors.red : AppTheme.primary,
+                                      foregroundColor: Colors.white,
+                                      elevation: isListening ? 4 : 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                    ),
+                                    icon: Icon(
+                                      isListening ? Icons.mic : Icons.mic_none_rounded,
+                                      size: 20,
+                                    ),
+                                    label: Text(
+                                      isListening ? "Listening..." : "Tap to Speak",
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // --- Translation Output Card ---
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(28.0),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(strokeWidth: 2.5),
+                            SizedBox(height: 12),
+                            Text(
+                              "Translating classroom text...",
+                              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (_currentResult != null && _currentResult!.translatedText.isNotEmpty)
+                    AppCard(
+                      accentColor: AppTheme.terracotta,
+                      backgroundColor: isDark ? const Color(0xFF261E1A) : AppTheme.surfaceSubtle,
+                      borderColor: isDark ? const Color(0xFF4A3226) : const Color(0xFFF0DDD1),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Target Language Header Row
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                _sourceLang == 'hi' ? "Enter Hindi Text" : "Santali (Ol Chiki)",
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
                               Row(
                                 children: [
-                                  if (_sourceLang == 'sat')
-                                    IconButton(
-                                      tooltip: "Virtual Ol Chiki Keyboard",
-                                      icon: Icon(
-                                        _showKeyboard ? Icons.keyboard_hide : Icons.keyboard,
-                                        size: 20,
-                                        color: _showKeyboard ? primary : Colors.grey,
-                                      ),
-                                      onPressed: () {
-                                        setState(() => _showKeyboard = !_showKeyboard);
-                                      },
+                                  Text(
+                                    _targetLang == 'sat' ? "SANTALI (ᱚᱞ ᱪᱤᱠᱤ)" : "HINDI (हिंदी)",
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                      color: AppTheme.terracotta,
                                     ),
-                                  if (_inputController.text.isNotEmpty)
-                                    IconButton(
-                                      icon: const Icon(Icons.close, size: 18),
-                                      onPressed: () {
-                                        _inputController.clear();
-                                      },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (_currentResult!.isExactMatch)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.softGreen,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        "Verified",
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.primaryDark,
+                                        ),
+                                      ),
                                     ),
                                 ],
+                              ),
+                              IconButton(
+                                tooltip: _isFavorite ? "Remove favorite" : "Save favorite",
+                                icon: Icon(
+                                  _isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                                  color: _isFavorite ? AppTheme.mustard : Colors.grey,
+                                  size: 24,
+                                ),
+                                onPressed: _toggleFavorite,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          TextField(
-                            controller: _inputController,
-                            focusNode: _focusNode,
-                            maxLines: 4,
-                            minLines: 2,
+                          const SizedBox(height: 10),
+
+                          // Large Primary Translation Output
+                          SelectableText(
+                            _currentResult!.translatedText,
                             style: TextStyle(
-                              fontSize: 18,
-                              fontFamily: _sourceLang == 'sat' ? null : null,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: _sourceLang == 'hi'
-                                  ? "यहाँ लिखें या बोलें (उदा. आप कैसे हैं?)..."
-                                  : "ᱱᱚᱰᱮ ᱚᱞ ᱢᱮ (e.g. ᱪᱮᱫ ᱞᱮᱠᱟ ᱢᱮᱱᱟᱜ ᱵᱤᱱᱟ)...",
-                              border: InputBorder.none,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : AppTheme.textPrimary,
+                              height: 1.35,
                             ),
                           ),
-                          const Divider(),
+                          const SizedBox(height: 8),
+
+                          // Phonetic pronunciation pill
+                          if (_currentResult!.phonetic.isNotEmpty &&
+                              _currentResult!.phonetic != _currentResult!.translatedText)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppTheme.darkBorder : AppTheme.softYellow,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.record_voice_over_outlined, size: 14, color: AppTheme.mustardDark),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      "Pronunciation: ${_currentResult!.phonetic}",
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF5A4408),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // Devanagari transliteration
+                          if (_targetLang == 'sat' &&
+                              _currentResult!.devanagari.isNotEmpty &&
+                              _currentResult!.devanagari != _currentResult!.translatedText)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                "संथाली (देवनागरी): ${_currentResult!.devanagari}",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                                ),
+                              ),
+                            ),
+
+                          const Divider(height: 20),
+
+                          // Action Toolbar
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Row(
                                 children: [
-                                  IconButton(
-                                    tooltip: "Paste",
-                                    icon: const Icon(Icons.paste, size: 20),
-                                    onPressed: () async {
-                                      final data = await Clipboard.getData('text/plain');
-                                      if (data?.text != null) {
-                                        _inputController.text = data!.text!;
-                                      }
+                                  AudioButton(
+                                    size: 22,
+                                    tooltip: "Speak translation",
+                                    color: AppTheme.terracotta,
+                                    backgroundColor: isDark ? const Color(0xFF4A3226) : AppTheme.softTerracotta,
+                                    onPressed: () {
+                                      _speakText(
+                                        _currentResult!.translatedText,
+                                        _targetLang,
+                                        phonetic: _currentResult!.phonetic,
+                                      );
                                     },
                                   ),
-                                  if (_inputController.text.isNotEmpty)
-                                    IconButton(
-                                      tooltip: "Listen",
-                                      icon: const Icon(Icons.volume_up_outlined, size: 20),
-                                      onPressed: () {
-                                        _speakText(_inputController.text, _sourceLang);
-                                      },
-                                    ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    tooltip: "Copy text",
+                                    icon: const Icon(Icons.copy_rounded, size: 20),
+                                    onPressed: () {
+                                      _copyToClipboard(_currentResult!.translatedText);
+                                    },
+                                  ),
+                                  IconButton(
+                                    tooltip: "Classroom Flashcard Mode",
+                                    icon: const Icon(Icons.fullscreen_rounded, size: 22),
+                                    onPressed: () {
+                                      _showFullscreenDialog(_currentResult!);
+                                    },
+                                  ),
                                 ],
                               ),
-                              // Microphone Button
-                              AnimatedBuilder(
-                                animation: _pulseAnimation,
-                                builder: (context, child) {
-                                  final isListening = _voiceService.isListening;
-                                  return Transform.scale(
-                                    scale: isListening ? _pulseAnimation.value : 1.0,
-                                    child: FloatingActionButton.small(
-                                      backgroundColor: isListening ? Colors.red : primary,
-                                      foregroundColor: Colors.white,
-                                      elevation: isListening ? 6 : 2,
-                                      onPressed: _toggleVoiceInput,
-                                      child: Icon(
-                                        isListening ? Icons.mic : Icons.mic_none,
-                                        size: 22,
-                                      ),
-                                    ),
-                                  );
-                                },
+                              Flexible(
+                                child: Text(
+                                  _isOffline ? "🟢 Offline Engine" : "🟠 AI4Bharat Neural",
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Translation Output Card
-                  if (_isLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: CircularProgressIndicator(),
-                    )
-                  else if (_currentResult != null && _currentResult!.translatedText.isNotEmpty)
-                    Card(
-                      color: isDark ? const Color(0xFF1E2638) : const Color(0xFFFFF9F5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: primary.withValues(alpha: 0.3), width: 1.5),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      _targetLang == 'sat' ? "Santali (ᱚᱞ ᱪᱤᱠᱤ)" : "Hindi (हिंदी)",
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if (_currentResult!.isExactMatch)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF2D6A4F).withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: const Text(
-                                          "Exact",
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF2D6A4F),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    _isFavorite ? Icons.star : Icons.star_border,
-                                    color: _isFavorite ? Colors.amber : Colors.grey,
-                                  ),
-                                  onPressed: _toggleFavorite,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Primary translation output (Ol Chiki if target is Santali)
-                            SelectableText(
-                              _currentResult!.translatedText,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : const Color(0xFF1F2937),
-                                height: 1.3,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            // Phonetic transliteration subtitle
-                            if (_currentResult!.phonetic.isNotEmpty &&
-                                _currentResult!.phonetic != _currentResult!.translatedText)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  "Pronunciation: ${_currentResult!.phonetic}",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontStyle: FontStyle.italic,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                            // Devanagari transliteration
-                            if (_targetLang == 'sat' &&
-                                _currentResult!.devanagari.isNotEmpty &&
-                                _currentResult!.devanagari != _currentResult!.translatedText)
-                              Text(
-                                "संथाली (देवनागरी): ${_currentResult!.devanagari}",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            const Divider(height: 24),
-                            // Action toolbar
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      tooltip: "Speak Audio",
-                                      icon: Icon(Icons.volume_up, color: primary, size: 24),
-                                      onPressed: () {
-                                        _speakText(
-                                          _currentResult!.translatedText,
-                                          _targetLang,
-                                          phonetic: _currentResult!.phonetic,
-                                        );
-                                      },
-                                    ),
-                                    IconButton(
-                                      tooltip: "Copy",
-                                      icon: const Icon(Icons.copy, size: 20),
-                                      onPressed: () {
-                                        _copyToClipboard(_currentResult!.translatedText);
-                                      },
-                                    ),
-                                    IconButton(
-                                      tooltip: "Full Screen",
-                                      icon: const Icon(Icons.fullscreen, size: 22),
-                                      onPressed: () {
-                                        _showFullscreenDialog(_currentResult!);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  _isOffline ? "Offline Engine" : "AI4Bharat Online",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
 
                   const SizedBox(height: 16),
 
-                  // Quick phrases preview
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Quick Common Phrases",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
+                  // --- Quick Classroom Phrases ---
+                  const SectionHeader(
+                    title: "Quick Classroom Phrases",
+                    subtitle: "Tap to quickly translate and announce to students",
+                    icon: Icons.lightbulb_outline_rounded,
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: SantaliDictionary.phrases.take(8).map((phrase) {
+                    children: SantaliDictionary.phrases
+                        .where((p) => p.category == "Classroom" || p.category == "Greetings")
+                        .take(8)
+                        .map((phrase) {
+                      final label = _sourceLang == 'hi' ? phrase.hindi : phrase.santaliOlChiki;
                       return ActionChip(
-                        label: Text(
-                          _sourceLang == 'hi' ? phrase.hindi : phrase.santaliOlChiki,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        avatar: const Icon(Icons.translate, size: 14),
+                        label: Text(label, style: const TextStyle(fontSize: 13)),
+                        avatar: const Icon(Icons.volume_up_rounded, size: 14),
                         onPressed: () {
-                          _inputController.text = _sourceLang == 'hi' ? phrase.hindi : phrase.santaliOlChiki;
+                          _inputController.text = label;
                         },
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -750,18 +920,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   void _showFullscreenDialog(TranslationResult result) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog.fullscreen(
         child: Scaffold(
+          backgroundColor: isDark ? AppTheme.darkBg : AppTheme.warmParchment,
           appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            title: const Text("Classroom Card"),
             leading: IconButton(
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.close_rounded),
               onPressed: () => Navigator.pop(ctx),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.volume_up),
+                tooltip: "Speak audio",
+                icon: const Icon(Icons.volume_up_rounded, color: AppTheme.primary),
                 onPressed: () {
                   _speakText(result.translatedText, result.targetLang, phonetic: result.phonetic);
                 },
@@ -770,34 +946,58 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           body: Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    result.sourceText,
-                    style: const TextStyle(fontSize: 20, color: Colors.grey),
-                    textAlign: TextAlign.center,
+              padding: const EdgeInsets.all(28.0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: AppCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                  accentColor: AppTheme.terracotta,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        result.sourceText,
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      SelectableText(
+                        result.translatedText,
+                        style: TextStyle(
+                          fontSize: 38,
+                          fontWeight: FontWeight.bold,
+                          height: 1.35,
+                          color: isDark ? Colors.white : AppTheme.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (result.phonetic.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppTheme.darkBorder : AppTheme.softYellow,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            "Pronunciation: ${result.phonetic}",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF5A4408),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  SelectableText(
-                    result.translatedText,
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      height: 1.3,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (result.phonetic.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      result.phonetic,
-                      style: const TextStyle(fontSize: 20, fontStyle: FontStyle.italic, color: Colors.blueGrey),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ),
@@ -805,4 +1005,196 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
     );
   }
+
+  Widget _buildLanguageSelector({
+    required BuildContext context,
+    required String currentLang,
+    required String headerTitle,
+    required List<String> options,
+    required bool isOpen,
+    required ValueChanged<bool> onOpenChanged,
+    required ValueChanged<String> onSelected,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        hoverColor: isDark ? const Color(0xFF174238) : AppTheme.softGreen,
+        highlightColor: isDark ? const Color(0xFF174238) : AppTheme.softGreen,
+      ),
+      child: PopupMenuButton<String>(
+        tooltip: '',
+        position: PopupMenuPosition.under,
+        elevation: 4,
+        shadowColor: const Color(0x1F24332F),
+        surfaceTintColor: Colors.transparent,
+        color: isDark ? AppTheme.darkCard : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+            width: 1.2,
+          ),
+        ),
+        onOpened: () => onOpenChanged(true),
+        onCanceled: () => onOpenChanged(false),
+        onSelected: (val) {
+          onOpenChanged(false);
+          HapticFeedback.selectionClick();
+          onSelected(val);
+        },
+        itemBuilder: (BuildContext popupContext) {
+          final List<PopupMenuEntry<String>> items = [];
+
+          // Header: SOURCE LANGUAGE or TARGET LANGUAGE
+          items.add(
+            PopupMenuItem<String>(
+              enabled: false,
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Text(
+                headerTitle,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                ),
+              ),
+            ),
+          );
+
+          // Subtle divider below header
+          items.add(
+            PopupMenuItem<String>(
+              enabled: false,
+              height: 1,
+              padding: EdgeInsets.zero,
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: isDark ? AppTheme.darkBorder : AppTheme.borderSubtle,
+              ),
+            ),
+          );
+
+          // Language options
+          for (final lang in options) {
+            final isSelected = lang == currentLang;
+            final dotColor = _getLanguageDotColor(lang);
+
+            items.add(
+              PopupMenuItem<String>(
+                value: lang,
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF174238) : AppTheme.softGreen)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        child: isSelected
+                            ? Icon(
+                                Icons.check_rounded,
+                                size: 16,
+                                color: isDark ? const Color(0xFF38B29D) : AppTheme.primary,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: dotColor,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          lang,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFFB4EAE0) : AppTheme.primaryDark)
+                                : (isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return items;
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: isOpen
+                ? (isDark ? AppTheme.darkBorder : AppTheme.softGreen.withValues(alpha: 0.6))
+                : (isDark ? Colors.white.withValues(alpha: 0.04) : AppTheme.surfaceSubtle),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isOpen
+                  ? (isDark ? const Color(0xFF38B29D) : AppTheme.primary.withValues(alpha: 0.5))
+                  : (isDark ? AppTheme.darkBorder : AppTheme.borderSubtle),
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _getLanguageDotColor(currentLang),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  currentLang,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: isOpen ? 0.5 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+

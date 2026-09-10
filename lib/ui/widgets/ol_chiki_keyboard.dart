@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:speech_translator/ui/theme/app_theme.dart';
 
 class OlChikiKeyboard extends StatelessWidget {
   final Function(String char) onKeyTap;
@@ -29,19 +30,26 @@ class OlChikiKeyboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final kbBg = isDark ? const Color(0xFF1B2232) : const Color(0xFFE5E7EB);
-    final keyBg = isDark ? const Color(0xFF28334A) : Colors.white;
-    final textColor = isDark ? Colors.white : const Color(0xFF1F2937);
+    final kbBg = isDark ? AppTheme.darkSurface : AppTheme.warmParchment;
+    final keyBg = isDark ? AppTheme.darkCard : Colors.white;
+    final keyBorder = isDark ? AppTheme.darkBorder : AppTheme.borderWarm;
+    final textColor = isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
         color: kbBg,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+            width: 1.5,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: isDark ? Colors.black.withValues(alpha: 0.3) : const Color(0x1424332F),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
           ),
         ],
       ),
@@ -50,14 +58,36 @@ class OlChikiKeyboard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Keyboard Header Toolbar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "ᱚᱞ ᱪᱤᱠᱤ ᱠᱤᱵᱳᱨᱰ (Ol Chiki)",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.keyboard_rounded,
+                          size: 16,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "ᱚᱞ ᱪᱤᱠᱤ ᱠᱤᱵᱳᱨᱰ (Ol Chiki Script)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
                   ),
                   Row(
                     children: [
@@ -66,48 +96,60 @@ class OlChikiKeyboard extends StatelessWidget {
                           onPressed: onClear,
                           style: TextButton.styleFrom(
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            foregroundColor: AppTheme.terracotta,
                           ),
-                          child: const Text("Clear", style: TextStyle(fontSize: 12)),
+                          child: const Text(
+                            "Clear",
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       if (onClose != null)
                         IconButton(
-                          icon: const Icon(Icons.keyboard_hide, size: 20),
+                          tooltip: "Hide Keyboard",
+                          icon: const Icon(Icons.keyboard_hide_rounded, size: 20),
                           onPressed: onClose,
                           visualDensity: VisualDensity.compact,
+                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
                         ),
                     ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 4),
+
+            // Alphabet and Numeral Rows
             for (var row in rows)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                padding: const EdgeInsets.symmetric(vertical: 2.5),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: row.map((char) {
                     return Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 2.5),
                         child: Material(
                           color: keyBg,
-                          borderRadius: BorderRadius.circular(6),
-                          elevation: 1,
+                          borderRadius: BorderRadius.circular(8),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                             onTap: () {
                               HapticFeedback.lightImpact();
                               onKeyTap(char);
                             },
                             child: Container(
-                              height: 38,
+                              height: 42,
                               alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: keyBorder, width: 1.0),
+                              ),
                               child: Text(
                                 char,
                                 style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
                                   color: textColor,
                                 ),
                               ),
@@ -119,38 +161,50 @@ class OlChikiKeyboard extends StatelessWidget {
                   }).toList(),
                 ),
               ),
+
+            // Action Row: Space, Backspace
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               child: Row(
                 children: [
                   Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: onSpace,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: keyBg,
-                        foregroundColor: textColor,
-                        elevation: 1,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    flex: 3,
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: onSpace,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: keyBg,
+                          foregroundColor: textColor,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(color: keyBorder, width: 1.2),
+                          ),
+                        ),
+                        icon: const Icon(Icons.space_bar_rounded, size: 20),
+                        label: const Text(
+                          "Space (ᱡᱟᱭᱜᱟ)",
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
                       ),
-                      icon: const Icon(Icons.space_bar, size: 18),
-                      label: const Text("Space"),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 1,
-                    child: ElevatedButton(
-                      onPressed: onBackspace,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC84B31),
-                        foregroundColor: Colors.white,
-                        elevation: 1,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: onBackspace,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.terracotta,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Icon(Icons.backspace_outlined, size: 20),
                       ),
-                      child: const Icon(Icons.backspace_outlined, size: 20),
                     ),
                   ),
                 ],

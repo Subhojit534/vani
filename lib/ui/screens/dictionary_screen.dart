@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:speech_translator/service/offline/santali_dictionary.dart';
 import 'package:speech_translator/service/voice/voice_service.dart';
+import 'package:speech_translator/ui/theme/app_theme.dart';
+import 'package:speech_translator/ui/widgets/app_card.dart';
+import 'package:speech_translator/ui/widgets/audio_button.dart';
+import 'package:speech_translator/ui/widgets/empty_state.dart';
 
 class DictionaryScreen extends StatefulWidget {
   const DictionaryScreen({super.key});
@@ -12,6 +17,7 @@ class DictionaryScreen extends StatefulWidget {
 class _DictionaryScreenState extends State<DictionaryScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final VoiceService _voiceService = VoiceService();
+  final TextEditingController _searchController = TextEditingController();
   String _search = "";
 
   @override
@@ -23,183 +29,342 @@ class _DictionaryScreenState extends State<DictionaryScreen> with SingleTickerPr
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final filteredVocab = SantaliDictionary.vocabulary.where((w) {
       if (_search.isEmpty) return true;
-      final q = _search.toLowerCase();
+      final q = _search.toLowerCase().trim();
       return w.hindi.toLowerCase().contains(q) ||
           w.santaliOlChiki.contains(q) ||
-          w.santaliLatin.toLowerCase().contains(q);
+          w.santaliLatin.toLowerCase().contains(q) ||
+          w.santaliDevanagari.contains(q);
     }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Dictionary & Ol Chiki"),
+        title: const Text("Dictionary & Literacy"),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: primary,
-          indicatorColor: primary,
           tabs: const [
-            Tab(text: "Vocabulary", icon: Icon(Icons.menu_book)),
-            Tab(text: "Ol Chiki Alphabet", icon: Icon(Icons.spellcheck)),
+            Tab(text: "Vocabulary", icon: Icon(Icons.menu_book_rounded, size: 20)),
+            Tab(text: "Ol Chiki Alphabet", icon: Icon(Icons.school_rounded, size: 20)),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Vocabulary Tab
+          // ================= Tab 1: Vocabulary =================
           Column(
             children: [
+              // Search Input Box
               Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                 child: TextField(
+                  controller: _searchController,
                   onChanged: (val) => setState(() => _search = val),
                   decoration: InputDecoration(
                     hintText: "Search word in Hindi or Santali...",
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: isDark ? const Color(0xFF1E2638) : Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primary),
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _search = "");
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   ),
                 ),
               ),
+
+              // Word list / Empty state
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: filteredVocab.length,
-                  itemBuilder: (context, index) {
-                    final word = filteredVocab[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        title: Row(
-                          children: [
-                            Text(
-                              word.hindi,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                child: filteredVocab.isEmpty
+                    ? EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: "No words found",
+                        description: "No dictionary entries match '$_search'. Try searching in Hindi or Ol Chiki script.",
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        itemCount: filteredVocab.length,
+                        itemBuilder: (context, index) {
+                          final word = filteredVocab[index];
+
+                          return AppCard(
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Top row: Hindi Word & Audio
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              word.hindi,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 18,
+                                                color: isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              word.partOfSpeech,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? const Color(0xFF5CE5C0) : AppTheme.primary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    AudioButton(
+                                      size: 20,
+                                      onPressed: () {
+                                        HapticFeedback.lightImpact();
+                                        _voiceService.speak(
+                                          text: word.santaliOlChiki,
+                                          langCode: 'sat',
+                                          phoneticFallback: word.santaliLatin,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+
+                                // Santali Ol Chiki Word
+                                SelectableText(
+                                  word.santaliOlChiki,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF5CE5C0) : AppTheme.primary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+
+                                // Secondary Info: Phonetic & Devanagari
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? AppTheme.darkBorder : AppTheme.softYellow,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        "Phonetic: ${word.santaliLatin}",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontStyle: FontStyle.italic,
+                                          color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF5A4408),
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      "देवनागरी: ${word.santaliDevanagari}",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                word.partOfSpeech,
-                                style: const TextStyle(fontSize: 10, color: Colors.grey),
-                              ),
-                            ),
-                          ],
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 2),
-                            Text(
-                              word.santaliOlChiki,
-                              style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
-                                color: primary,
-                              ),
-                            ),
-                            Text(
-                              "Phonetic: ${word.santaliLatin}  |  Devanagari: ${word.santaliDevanagari}",
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                        trailing: IconButton(
-                          icon: Icon(Icons.volume_up, color: primary),
-                          onPressed: () {
-                            _voiceService.speak(
-                              text: word.santaliOlChiki,
-                              langCode: 'sat',
-                              phoneticFallback: word.santaliLatin,
-                            );
-                          },
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ],
           ),
 
-          // Ol Chiki Alphabet Chart
-          GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-            ),
-            itemCount: SantaliDictionary.olChikiAlphabet.length,
-            itemBuilder: (context, index) {
-              final letter = SantaliDictionary.olChikiAlphabet[index];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          letter["char"]!,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: primary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
+          // ================= Tab 2: Ol Chiki Alphabet =================
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth >= 680;
+              final crossAxisCount = isTablet ? 3 : 2;
+
+              return CustomScrollView(
+                slivers: [
+                  // Educational Banner
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: AppCard(
+                        accentColor: AppTheme.mustard,
+                        backgroundColor: isDark ? const Color(0xFF282319) : AppTheme.softMustard,
+                        borderColor: isDark ? const Color(0xFF4A3B20) : const Color(0xFFEBD8B2),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              letter["name"]!,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.school_rounded,
+                                color: AppTheme.mustardDark,
+                                size: 22,
+                              ),
                             ),
-                            Text(
-                              letter["ipa"]!,
-                              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
-                            ),
-                            Text(
-                              letter["meaning"]!,
-                              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "ᱚᱞ ᱪᱤᱠᱤ (Ol Chiki Script Literacy)",
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Created in 1925 by Pandit Raghunath Murmu. Each letter represents a sound shaped after natural objects, body gestures, and traditional Santal heritage.",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF4A3B20),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+
+                  // Alphabet Grid
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: isTablet ? 2.1 : 1.75,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final letter = SantaliDictionary.olChikiAlphabet[index];
+                          final char = letter["char"]!;
+                          final name = letter["name"]!;
+                          final ipa = letter["ipa"]!;
+                          final meaning = letter["meaning"]!;
+
+                          return AppCard(
+                            padding: const EdgeInsets.all(12),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              _voiceService.speak(
+                                text: char,
+                                langCode: 'sat',
+                                phoneticFallback: name,
+                              );
+                            },
+                            child: Row(
+                              children: [
+                                // Glyph Box
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF2F403B) : const Color(0xFFCDE3DA),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    char,
+                                    style: TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? const Color(0xFF5CE5C0) : AppTheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+
+                                // Letter Info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                      Text(
+                                        ipa,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                                        ),
+                                      ),
+                                      Text(
+                                        meaning,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF8A7750),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.volume_up_rounded,
+                                  size: 16,
+                                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.textMuted,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        childCount: SantaliDictionary.olChikiAlphabet.length,
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),

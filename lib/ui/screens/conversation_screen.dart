@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:speech_translator/service/offline/santali_dictionary.dart';
 import 'package:speech_translator/hybrid_translation_service.dart';
+import 'package:speech_translator/service/offline/santali_dictionary.dart';
 import 'package:speech_translator/service/voice/voice_service.dart';
+import 'package:speech_translator/ui/theme/app_theme.dart';
+import 'package:speech_translator/ui/widgets/conversation_bubble.dart';
+import 'package:speech_translator/ui/widgets/empty_state.dart';
 
 class ConversationMessage {
   final String text;
@@ -35,6 +38,7 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
 
   String _liveTranscript = '';
   String _currentSpeaker = ''; // 'hi' or 'sat' or ''
+  bool _isProcessing = false;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -46,7 +50,7 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.18).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -79,7 +83,7 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
     });
 
     await _voiceService.startListening(
-      languageCode: 'hi_IN',
+      languageCode: speakerLang == 'hi' ? 'hi_IN' : 'en_IN',
       onError: (err) {
         setState(() {
           _currentSpeaker = '';
@@ -93,12 +97,10 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
         if (!mounted) return;
 
         if (!isFinal) {
-          // While speaking, only update live transient transcript without adding cards or speaking audio
           setState(() {
             _liveTranscript = recognized;
           });
         } else {
-          // When line is completed, process the full sentence once
           final text = recognized.trim();
           setState(() {
             _liveTranscript = '';
@@ -112,123 +114,8 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
     );
   }
 
-  void _showOfflineAssistant(String speakerLang) {
-    final isHindi = speakerLang == 'hi';
-    final TextEditingController customController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E2638) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.offline_bolt,
-                      color: isHindi ? const Color(0xFF1F4068) : const Color(0xFF2D6A4F),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isHindi ? "Offline Hindi Phrases & Input" : "Offline Santali Phrases & Input",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Select a common phrase or type below. It will translate and speak aloud offline.",
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 12),
-                // Custom input field
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: customController,
-                        decoration: InputDecoration(
-                          hintText: isHindi ? "Type Hindi (e.g. आप कैसे हैं?)..." : "Type Santali (e.g. ᱡᱚᱦᱟᱨ / Johar)...",
-                          filled: true,
-                          fillColor: isDark ? const Color(0xFF121826) : Colors.grey.shade100,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      icon: const Icon(Icons.send),
-                      onPressed: () {
-                        final text = customController.text.trim();
-                        if (text.isNotEmpty) {
-                          Navigator.pop(context);
-                          _processCompletedSentence(text, speakerLang);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "Quick Tap & Speak Phrases:",
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: SantaliDictionary.phrases.take(10).map((phrase) {
-                    final label = isHindi ? phrase.hindi : phrase.santaliOlChiki;
-                    return ActionChip(
-                      label: Text(label, style: const TextStyle(fontSize: 13)),
-                      avatar: const Icon(Icons.volume_up, size: 14),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _processCompletedSentence(label, speakerLang);
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   void _processCompletedSentence(String text, String speakerLang) async {
+    setState(() => _isProcessing = true);
     final targetLang = speakerLang == 'hi' ? 'sat' : 'hi';
     final result = await _hybridService.translate(
       text: text,
@@ -245,9 +132,10 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
           speakerLang: speakerLang,
           time: DateTime.now(),
         ));
+        _isProcessing = false;
       });
 
-      // Speak final translation exactly ONCE
+      // Speak final translation once
       _voiceService.speak(
         text: result.translatedText,
         langCode: targetLang,
@@ -255,7 +143,7 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
       );
 
       // Scroll to bottom
-      Future.delayed(const Duration(milliseconds: 100), () {
+      Future.delayed(const Duration(milliseconds: 120), () {
         if (_scrollController.hasClients) {
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
@@ -267,50 +155,230 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
     }
   }
 
+  void _showOfflineAssistant(String speakerLang) {
+    final isTeacher = speakerLang == 'hi';
+    final TextEditingController customController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? AppTheme.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.offline_bolt_rounded,
+                      color: isTeacher ? AppTheme.primary : AppTheme.terracotta,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      isTeacher ? "Offline Teacher Input (Hindi)" : "Offline Student Input (Santali)",
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Type a phrase or pick from classroom presets below to translate and announce offline:",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Manual input field
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: customController,
+                        decoration: InputDecoration(
+                          hintText: isTeacher
+                              ? "यहाँ लिखें (उदा. पाठ पढ़ो / किताब खोलो)..."
+                              : "ᱱᱚᱰᱮ ᱚᱞ ᱢᱮ (e.g. ᱡᱚᱦᱟᱨ / Johar)...",
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isTeacher ? AppTheme.primary : AppTheme.terracotta,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        final text = customController.text.trim();
+                        if (text.isNotEmpty) {
+                          Navigator.pop(context);
+                          _processCompletedSentence(text, speakerLang);
+                        }
+                      },
+                      child: const Icon(Icons.send_rounded, size: 20),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  "Quick Classroom Tap & Speak:",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: SantaliDictionary.phrases
+                      .where((p) => p.category == "Classroom" || p.category == "Greetings")
+                      .take(10)
+                      .map((phrase) {
+                    final label = isTeacher ? phrase.hindi : phrase.santaliOlChiki;
+                    return ActionChip(
+                      label: Text(label, style: const TextStyle(fontSize: 13)),
+                      avatar: const Icon(Icons.volume_up_rounded, size: 14),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _processCompletedSentence(label, speakerLang);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = Theme.of(context).colorScheme.primary;
+
+    // Determine current textual state
+    String statusText;
+    IconData statusIcon;
+    Color statusColor;
+
+    if (_isProcessing) {
+      statusText = "Processing translation...";
+      statusIcon = Icons.sync_rounded;
+      statusColor = AppTheme.mustardDark;
+    } else if (_currentSpeaker.isNotEmpty) {
+      final speakerTitle = _currentSpeaker == 'hi' ? 'Teacher (Hindi)' : 'Student (Santali)';
+      if (_liveTranscript.isNotEmpty) {
+        statusText = 'Listening to $speakerTitle: "$_liveTranscript"';
+      } else {
+        statusText = "Listening to $speakerTitle...";
+      }
+      statusIcon = Icons.mic_rounded;
+      statusColor = _currentSpeaker == 'hi' ? AppTheme.primary : AppTheme.terracotta;
+    } else if (_messages.isNotEmpty) {
+      statusText = "Translation ready • Tap mic to speak";
+      statusIcon = Icons.check_circle_outline_rounded;
+      statusColor = AppTheme.primary;
+    } else {
+      statusText = "Tap microphone below to start speaking";
+      statusIcon = Icons.record_voice_over_outlined;
+      statusColor = isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary;
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Face-to-Face Conversation"),
+        title: const Text("Classroom Conversation"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () {
-              setState(() => _messages.clear());
-            },
-          ),
+          if (_messages.isNotEmpty)
+            IconButton(
+              tooltip: "Clear conversation",
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text("Clear conversation?"),
+                    content: const Text("This will clear all current messages on this screen."),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text("Cancel"),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text("Clear"),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  setState(() => _messages.clear());
+                }
+              },
+            ),
         ],
       ),
       body: Column(
         children: [
-          // Live status header
+          // Live Classroom Status Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: primary.withValues(alpha: 0.08),
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.darkSurface : AppTheme.surfaceSubtle,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+                  width: 1.0,
+                ),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  _currentSpeaker.isEmpty ? Icons.record_voice_over : Icons.mic,
-                  size: 18,
-                  color: _currentSpeaker.isNotEmpty ? Colors.red : null,
-                ),
+                if (_isProcessing)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(statusIcon, size: 18, color: statusColor),
                 const SizedBox(width: 8),
-                Expanded(
+                Flexible(
                   child: Text(
-                    _currentSpeaker.isEmpty
-                        ? "Tap microphone below to start speaking"
-                        : (_liveTranscript.isNotEmpty
-                            ? "Listening (${_currentSpeaker == 'hi' ? 'Hindi' : 'Santali'}): \"$_liveTranscript\""
-                            : "Listening to ${_currentSpeaker == 'hi' ? 'Hindi' : 'Santali'} Speaker..."),
+                    statusText,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       fontSize: 13,
-                      color: _currentSpeaker.isNotEmpty ? primary : null,
+                      color: statusColor,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -320,178 +388,139 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
             ),
           ),
 
-          // Messages list
+          // Messages List / Empty State
           Expanded(
             child: _messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade400),
-                        const SizedBox(height: 12),
-                        const Text(
-                          "Two-Way Voice Translation",
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Press Hindi mic or Santali mic to speak in real-time.",
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
+                ? EmptyState(
+                    icon: Icons.school_rounded,
+                    title: "Live Classroom Two-Way Speech",
+                    description:
+                        "Facilitates real-time conversation between Hindi-speaking teachers and Santali-speaking students.\n\n• Tap 'Speak Hindi' for teacher instructions\n• Tap 'Speak Santali' for student answers",
                   )
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isHindi = msg.speakerLang == 'hi';
+                      final isTeacher = msg.speakerLang == 'hi';
 
-                      return Align(
-                        alignment: isHindi ? Alignment.centerLeft : Alignment.centerRight,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.82,
-                          ),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isHindi
-                                ? (isDark ? const Color(0xFF233044) : const Color(0xFFEBF3FF))
-                                : (isDark ? const Color(0xFF382A24) : const Color(0xFFFFF0EA)),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isHindi ? Colors.blue.withValues(alpha: 0.3) : primary.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    isHindi ? "Hindi Speaker" : "Santali Speaker",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: isHindi ? Colors.blue.shade700 : primary,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.volume_up, size: 18),
-                                    onPressed: () {
-                                      _voiceService.speak(
-                                        text: msg.translated,
-                                        langCode: isHindi ? 'sat' : 'hi',
-                                        phoneticFallback: msg.phonetic,
-                                      );
-                                    },
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                msg.text,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                              ),
-                              const Divider(height: 12),
-                              Text(
-                                msg.translated,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: isHindi ? primary : const Color(0xFF2D6A4F),
-                                ),
-                              ),
-                              if (msg.phonetic.isNotEmpty)
-                                Text(
-                                  msg.phonetic,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontStyle: FontStyle.italic,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
+                      return ConversationBubble(
+                        speakerLang: msg.speakerLang,
+                        originalText: msg.text,
+                        translatedText: msg.translated,
+                        phonetic: msg.phonetic,
+                        time: msg.time,
+                        onPlayAudio: () {
+                          _voiceService.speak(
+                            text: msg.translated,
+                            langCode: isTeacher ? 'sat' : 'hi',
+                            phoneticFallback: msg.phonetic,
+                          );
+                        },
                       );
                     },
                   ),
           ),
 
-          // Bottom Dual Mic Bar
+          // Bottom Dual Microphone Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2638) : Colors.white,
+              color: isDark ? AppTheme.darkSurface : AppTheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: isDark ? AppTheme.darkBorder : AppTheme.borderWarm,
+                  width: 1.2,
+                ),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
+                  color: isDark ? Colors.black.withValues(alpha: 0.3) : const Color(0x1424332F),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                // Hindi Speaker Button
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      final active = _currentSpeaker == 'hi';
-                      return ElevatedButton.icon(
-                        onPressed: () => _startListening('hi'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: active ? Colors.red : const Color(0xFF1F4068),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: Icon(active ? Icons.mic : Icons.mic_none),
-                        label: Text(
-                          active ? "Listening..." : "Speak Hindi",
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      );
-                    },
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  // Teacher (Hindi) Microphone
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        final active = _currentSpeaker == 'hi';
+                        return Transform.scale(
+                          scale: active ? _pulseAnimation.value : 1.0,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _startListening('hi'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: active ? Colors.red : AppTheme.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            icon: Icon(active ? Icons.mic : Icons.mic_none_rounded, size: 22),
+                            label: Text(
+                              active ? "Listening..." : "Speak Hindi\n(Teacher)",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: "Offline Phrases & Keyboard",
-                  icon: const Icon(Icons.offline_bolt),
-                  onPressed: () => _showOfflineAssistant(_currentSpeaker.isNotEmpty ? _currentSpeaker : 'hi'),
-                ),
-                const SizedBox(width: 8),
-                // Santali Speaker Button
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      final active = _currentSpeaker == 'sat';
-                      return ElevatedButton.icon(
-                        onPressed: () => _startListening('sat'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: active ? Colors.red : primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: Icon(active ? Icons.mic : Icons.mic_none),
-                        label: Text(
-                          active ? "Listening..." : "Speak Santali",
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      );
-                    },
+
+                  const SizedBox(width: 8),
+
+                  // Offline Sheet / Text helper button
+                  IconButton(
+                    tooltip: "Offline Classroom Phrases",
+                    style: IconButton.styleFrom(
+                      backgroundColor: isDark ? AppTheme.darkBorder : AppTheme.softGreen,
+                      foregroundColor: AppTheme.primary,
+                      padding: const EdgeInsets.all(12),
+                    ),
+                    icon: const Icon(Icons.offline_bolt_rounded, size: 22),
+                    onPressed: () => _showOfflineAssistant(
+                      _currentSpeaker.isNotEmpty ? _currentSpeaker : 'hi',
+                    ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(width: 8),
+
+                  // Student (Santali) Microphone
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        final active = _currentSpeaker == 'sat';
+                        return Transform.scale(
+                          scale: active ? _pulseAnimation.value : 1.0,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _startListening('sat'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: active ? Colors.red : AppTheme.terracotta,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            icon: Icon(active ? Icons.mic : Icons.mic_none_rounded, size: 22),
+                            label: Text(
+                              active ? "Listening..." : "Speak Santali\n(Student)",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
